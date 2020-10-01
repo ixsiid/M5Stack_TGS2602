@@ -76,6 +76,9 @@ void app_main() {
 		ILI9341 *lcd = (ILI9341 *)_lcd;
 		char buf[64] = {0};
 
+		uint8_t history[8 * 320] = {0};
+		int historyIndex		= 0;
+
 		int mode = 0;
 
 		int32_t values[7] = {0};
@@ -103,16 +106,28 @@ void app_main() {
 			if (mode >= 0b1110) {
 				// ディスプレイ更新モード
 				lcd->update();
-
 				lcd->clear(BLACK);
+				/* ラインを書く */
+				for (int x = 0; x < 320; x++) {
+					int t = historyIndex + x;
+					if (t >= 320) t -= 320;
+					for (int i = 0; i < 7; i++) {
+						uint8_t v = history[320 * i + t];
+						frameBuffer[320 * (239 - v) + x] = 0xffff;
+					}
+				}
+
+				historyIndex++;
+				if (historyIndex >= 320) historyIndex = 0;
 
 				for (int x = 315; x < 320; x++)
 					for (int y = 0; y < 5; y++)
 						frameBuffer[y * 320 + x] = refresh ? GREEN : RED;
 
-				// for(int i=0; i<7; i++) values[i] = 0;
-				mode	   = 0;
 				refresh = 1 - refresh;
+
+				// for(int i=0; i<7; i++) values[i] = 0;
+				mode = 0;
 				continue;
 			}
 
@@ -131,8 +146,13 @@ void app_main() {
 				else
 					sprintf(buf, "%d: %5d", t, values[t]);
 				lcd->drawString(10, 5 + 14 * t, GREEN, buf);
+
+				uint16_t v = (values[t] + 0b100000000000) >> 4;  // 12bitでサンプリングしたデータを8bitに丸める
+				if (v >= 240) v = 239;
+				history[320 * t + historyIndex] = v;
 			}
 			mode += 1;
 		}
-	}, "TGS", 4096, lcd, 1, NULL, 1);
+	},
+					    "TGS", 4096, lcd, 1, NULL, 1);
 }
